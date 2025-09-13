@@ -9,7 +9,7 @@ import { useNewConvo, useAppStartup, useAssistantListMap, useIdChangeEffect } fr
 import { getDefaultModelSpec, getModelSpecPreset, logger } from '~/utils';
 import { ToolCallsMapProvider } from '~/Providers';
 import ChatView from '~/components/Chat/ChatView';
-import LiveKitTextBridge, { LiveKitTextBridgeHandle } from '../components/LiveKitTextBridge';
+import LiveKitTextBridge, { LiveKitTextBridgeHandle } from '../components/useLiveKitTextBridge';
 import { useQueryClient } from '@tanstack/react-query';
 import useAuthRedirect from './useAuthRedirect';
 import temporaryStore from '~/store/temporary';
