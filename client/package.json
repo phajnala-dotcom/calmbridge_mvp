@@ -76,6 +76,7 @@
     "jotai": "^2.12.5",
     "js-cookie": "^3.0.5",
     "librechat-data-provider": "*",
+    "livekit-client": "^2.15.7",
     "lodash": "^4.17.21",
     "lucide-react": "^0.394.0",
     "match-sorter": "^8.1.0",
@@ -110,8 +111,7 @@
     "tailwind-merge": "^1.9.1",
     "tailwindcss-animate": "^1.0.5",
     "tailwindcss-radix": "^2.8.0",
-    "zod": "^3.22.4",
-    "livekit-client": "^2.5.0"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@babel/plugin-transform-runtime": "^7.22.15",
