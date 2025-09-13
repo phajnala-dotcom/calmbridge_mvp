@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Spinner } from '@librechat/client';
 import { useParams } from 'react-router-dom';
-import { Constants, EModelEndpoint } from 'librechat-data-provider';
+import { Constants, EModelEndpoint, ContentTypes } from 'librechat-data-provider';
 import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import type { TPreset } from 'librechat-data-provider';
 import { useGetConvoIdQuery, useGetStartupConfig, useGetEndpointsQuery } from '~/data-provider';
@@ -9,6 +9,8 @@ import { useNewConvo, useAppStartup, useAssistantListMap, useIdChangeEffect } fr
 import { getDefaultModelSpec, getModelSpecPreset, logger } from '~/utils';
 import { ToolCallsMapProvider } from '~/Providers';
 import ChatView from '~/components/Chat/ChatView';
+import LiveKitTextBridge, { LiveKitTextBridgeHandle } from '../components/LiveKitTextBridge';
+import { useQueryClient } from '@tanstack/react-query';
 import useAuthRedirect from './useAuthRedirect';
 import temporaryStore from '~/store/temporary';
 import { useRecoilCallback } from 'recoil';
@@ -17,6 +19,10 @@ import store from '~/store';
 export default function ChatRoute() {
   const { data: startupConfig } = useGetStartupConfig();
   const { isAuthenticated, user } = useAuthRedirect();
+
+  // LiveKit text bridge (headless)
+  const livekitRef = useRef<LiveKitTextBridgeHandle>(null);
+  const queryClient = useQueryClient();
 
   const setIsTemporary = useRecoilCallback(
     ({ set }) =>
@@ -32,6 +38,62 @@ export default function ChatRoute() {
   useIdChangeEffect(conversationId);
   const { hasSetConversation, conversation } = store.useCreateConversationAtom(index);
   const { newConversation } = useNewConvo();
+
+  const createAssistantMessagePayload = useCallback(
+    (text: string) => {
+      // Bezpečné minimum pre zápis správy; ponecháme endpoint/model z aktuálnej konverzácie
+      const messageId = (
+        globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
+      ).toString();
+      return {
+        messageId,
+        conversationId: conversation?.conversationId,
+        parentMessageId: Constants.NO_PARENT,
+        sender: 'Assistant',
+        isCreatedByUser: false,
+        endpoint: conversation?.endpoint,
+        model: conversation?.model,
+        text,
+        content: [
+          {
+            type: ContentTypes.TEXT,
+            text,
+          },
+        ],
+      };
+    },
+    [conversation],
+  );
+
+  const onAgentText = useCallback(
+    async (text: string, fromIdentity?: string) => {
+      if (!conversation?.conversationId) {
+        logger.warn('LiveKit text received but no active conversation found');
+        return;
+      }
+      try {
+        const payload = createAssistantMessagePayload(text);
+        const res = await fetch(
+          `/api/messages/${encodeURIComponent(conversation.conversationId)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          },
+        );
+        if (!res.ok) {
+          throw new Error(`Save message failed: ${res.status}`);
+        }
+        // Invalidovať cache správ pre aktuálnu konverzáciu, aby ChatView refetchol
+        await queryClient.invalidateQueries({
+          queryKey: ['messages', conversation?.conversationId],
+        });
+      } catch (err) {
+        logger.error('Failed to save assistant message from LiveKit', err);
+      }
+    },
+    [conversation, createAssistantMessagePayload, queryClient],
+  );
 
   const modelsQuery = useGetModelsQuery({
     enabled: isAuthenticated,
@@ -148,6 +210,8 @@ export default function ChatRoute() {
 
   return (
     <ToolCallsMapProvider conversationId={conversation.conversationId ?? ''}>
+      {/* Headless LiveKit text bridge: pripojenie do room a príjem textu cez DataChannel */}
+      <LiveKitTextBridge ref={livekitRef} onReceive={onAgentText} />
       <ChatView index={index} />
     </ToolCallsMapProvider>
   );
