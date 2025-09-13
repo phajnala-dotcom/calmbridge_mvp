@@ -153,5 +153,8 @@
       "admin/",
       "packages/"
     ]
+  },
+  "dependencies": {
+    "livekit-client": "^2.15.7"
   }
 }
