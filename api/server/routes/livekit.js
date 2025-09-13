@@ -5,6 +5,35 @@ const { requireJwtAuth } = require('~/server/middleware');
 const router = express.Router();
 
 /**
+ * GET /api/livekit/health
+ * Jednoduchý healthcheck LiveKit konfigurácie (bez autentifikácie).
+ * Nekoná žiadne pripojenie na LiveKit; iba kontroluje prítomnosť env premenných.
+ */
+router.get('/health', (req, res) => {
+  const hasKey = !!process.env.LIVEKIT_API_KEY;
+  const hasSecret = !!process.env.LIVEKIT_API_SECRET;
+  const hasUrl = !!process.env.LIVEKIT_URL; // url používa klient (napr. wss://<proj>.livekit.cloud)
+
+  if (!hasKey || !hasSecret) {
+    return res.status(500).json({
+      ok: false,
+      missing: {
+        LIVEKIT_API_KEY: hasKey,
+        LIVEKIT_API_SECRET: hasSecret,
+        LIVEKIT_URL: hasUrl, // odporúčané mať nastavené
+      },
+    });
+  }
+
+  return res.status(200).json({
+    ok: true,
+    info: {
+      LIVEKIT_URL_present: hasUrl,
+    },
+  });
+});
+
+/**
  * POST /api/livekit/token
  * Body:
  *  - room: string (required)
@@ -40,8 +69,7 @@ router.post('/token', requireJwtAuth, async (req, res) => {
           '',
       ) || `user-${Date.now()}`;
 
-    const displayName =
-      req.user?.name || req.user?.username || req.user?.email || undefined;
+    const displayName = req.user?.name || req.user?.username || req.user?.email || undefined;
 
     // safe metadata
     let metaPayload = {};
