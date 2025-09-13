@@ -29,6 +29,27 @@ export function useLiveKitTextBridge(
   const identityRef = useRef<string | undefined>(undefined);
   const roomNameRef = useRef<string | undefined>(undefined);
 
+  // Globálny listener na odosielanie textu cez LiveKit (DataChannel)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      try {
+        const ce = e as CustomEvent<{ text?: string }>;
+        const text = ce?.detail?.text;
+        if (typeof text === 'string' && text.length > 0) {
+          const room = roomRef.current;
+          if (room) {
+            const bytes = new TextEncoder().encode(text);
+            room.localParticipant.publishData(bytes, DataPacket_Kind.RELIABLE);
+          }
+        }
+      } catch {
+        /* no-op */
+      }
+    };
+    window.addEventListener('livekit:send-text', handler as EventListener);
+    return () => window.removeEventListener('livekit:send-text', handler as EventListener);
+  }, []);
+
   const connect = useCallback(async () => {
     if (isConnecting || isConnected) return;
     setIsConnecting(true);
@@ -57,6 +78,12 @@ export function useLiveKitTextBridge(
 
       roomRef.current = roomClient;
       setIsConnected(true);
+      // signalizuj "LiveKit-only" mód pre chat
+      try {
+        localStorage.setItem('livekit_text_only', '1');
+      } catch {
+        /* no-op */
+      }
     } finally {
       setIsConnecting(false);
     }
@@ -69,6 +96,11 @@ export function useLiveKitTextBridge(
       if (roomRef.current) {
         roomRef.current.disconnect();
         roomRef.current = null;
+      }
+      try {
+        localStorage.removeItem('livekit_text_only');
+      } catch {
+        /* no-op */
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -87,6 +119,11 @@ export function useLiveKitTextBridge(
       await room.disconnect();
       roomRef.current = null;
       setIsConnected(false);
+    }
+    try {
+      localStorage.removeItem('livekit_text_only');
+    } catch {
+      /* no-op */
     }
   }, []);
 
