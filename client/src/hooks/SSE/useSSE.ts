@@ -95,6 +95,15 @@ export default function useSSE(
       return;
     }
 
+    // LiveKit text-only mód: nespúšťaj SSE/LLM stream
+    const livekitOnly =
+      typeof window !== 'undefined' && localStorage.getItem('livekit_text_only') === '1';
+    if (livekitOnly) {
+      console.log('[LiveKitOnly] SSE disabled for this submission');
+      setIsSubmitting(false);
+      return;
+    }
+
     let { userMessage } = submission;
 
     const payloadData = createPayload(submission);

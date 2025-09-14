@@ -228,6 +228,21 @@ export default function useChatFunctions({
       setFilesToDelete({});
     }
 
+    // LiveKit Text Bridge: safety guard – ak je aktívny "text-only" režim, nespúšťaj SSE/LLM
+    const livekitOnly =
+      typeof window !== 'undefined' && localStorage.getItem('livekit_text_only') === '1';
+    if (livekitOnly) {
+      const nextMessages = (currentMessages ?? []).concat(currentMsg);
+      setMessages(nextMessages);
+      try {
+        window.dispatchEvent(new CustomEvent('livekit:send-text', { detail: { text } }));
+      } catch (e) {
+        console.warn('LiveKit dispatch failed', e);
+      }
+      setShowStopButton(false);
+      return;
+    }
+
     const responseMessageId =
       editedMessageId ??
       (latestMessage?.messageId && isRegenerate
